@@ -1,0 +1,16 @@
+{
+  "name": "panatom",
+  "version": "0.1.0",
+  "description": "A Parser Combinator written in JavaScript for Node.JS",
+  "main": "src/panatom.js",
+  "scripts": {
+    "index": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "parser",
+    "combinator"
+  ],
+  "author": "Alex C. Cavaco",
+  "license": "ISC"
+}
