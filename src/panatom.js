@@ -1,16 +1,16 @@
 const _parser = require('./parser');
-const {updateStateIndex} = require("./parser");
+const {updateStateIndex, updateState} = require("./parser");
 const { isEOF } = _parser;
 let { failure,success } = _parser;
 
 let string = str=>{
     let length = str.length;
     return _parser((state)=>{
-        let nState = updateStateIndex(state,state.index+length);
-        let testStr = state.input.substring(state.index,nState.index);
-        if(isEOF(nState)) return failure(nState,`String "${str}" not found at ${state.index} found instead EOF`);
-        if(testStr!==str) return failure(nState,`String "${str}" not found at ${state.index} found instead "${testStr}"`);
-        return success(nState, testStr);
+        let nextState = updateStateIndex(state,state.index+length);
+        let testStr = state.input.substring(state.index,nextState.index);
+        if(isEOF(nextState)) return failure(state,str);
+        if(testStr!==str) return failure(state,str);
+        return success(nextState, testStr);
     });
 }
 
@@ -19,32 +19,38 @@ let istring = str=>{
     return _parser((state)=>{
         let nextState = updateStateIndex(state,state.index+length);
         let testStr = state.input.substring(state.index,nextState.index);
-        if(isEOF(nextState)) return failure(nextState,`String "${str}" not found at ${state.index} found instead EOF`);
-        if(testStr.toLowerCase()!==str.toLowerCase()) return failure(nextState,`String "${str}" not found at ${state.index} found instead "${testStr}"`);
+        if(isEOF(nextState)) return failure(state,str);
+        if(testStr.toLowerCase()!==str.toLowerCase()) return failure(state,str);
         return success(nextState, testStr);
     });
 }
 
-let regexp = (regexp)=>{
+let regexp = (regexp,returnAll=false)=>{
     let nRegexp = RegExp("^(?:" + regexp.source + ")", regexp.flags);
     return _parser((state)=>{
         let testStr = state.input.substring(state.index);
         let matches = testStr.match(nRegexp);
         let nextState = updateStateIndex(state,state.index+(matches?matches[0].length:0));
-        if(isEOF(nextState)) return failure(nextState,`Match "${regexp.toString()}" not found at ${state.index} found instead EOF`);
-        if(!matches) return failure(nextState,`Match "${regexp.toString()}" not found at ${state.index} found instead "${testStr.substring(0,20)}"`);
-        let res = matches.length > 1 ? matches : matches[0];
+        if(isEOF(nextState)) return failure(state,regexp.toString());
+        if(!matches) return failure(state,regexp.toString());
+        matches = Array.from(matches);
+        if(!matches) return failure(state,regexp.toString());
+        let full = matches[0];
+        matches.shift();
+        let res = returnAll ? matches : full;
         return success(nextState, res);
     });
 }
 
 let coalesce = (...parsers)=>{
     return _parser((state)=>{
+        let errors = [];
         for(let iparcel of parsers){
             let lastState = iparcel.call(state);
             if(lastState.status) return lastState;
+            errors.push(lastState.error);
         }
-        return failure(state,'Coalesce failed to match any of the given parsers');
+        return failure(state,errors.join(', '));
     });
 };
 
@@ -62,6 +68,7 @@ let chain = (parsers)=>{
         let results = [];
         for(let iparcel of parsers){
             lastState = iparcel.call(lastState);
+            if(!lastState.status) return lastState;
             if(lastState.result!==undefined) results.push(lastState.result);
         }
         return success(lastState,results);
@@ -98,14 +105,16 @@ let atMost = (parser,num)=>limit(parser,0,num);
 let limit = (parser,min,max)=>{
     return _parser((state)=>{
         let nextState = state;
+        let results = [];
         for(let i = 0; i < max; i++){
             let index = nextState.index;
             let inState = parser.callFunc(nextState);
             if(!inState.status) return i<min ? failure(inState,'Parser failed before minimum limit of '+min+' was reached') : nextState;
             if(index===inState.index) failure(inState,'Limited Parser is not progressing, this can lead to infinite loops and was blocked');
+            results.push(inState.result);
             nextState = inState;
         }
-        return nextState;
+        return success(nextState,results);
     });
 };
 

@@ -4,6 +4,26 @@ let updateState = (state,upData)=>({ ...(state??{}), ...upData });
 let updateStateIndex = (state,index)=>({ ...(state??{}), index });
 let isEOF = (state)=>(state.index > state.input.length);
 
+let createError = (state)=>{
+    let strArr = state.input.split(/\n\r|\n|\r/);
+    let arrLen = strArr.length;
+    let rowPos = state.input.substring(0,state.index).split(/\n\r|\n|\r/).length;
+    let errStr = '';
+    let forFun = (i)=>(arrLen < 10 ? i : (arrLen < 100 ? (i < 10 ? ' '+i : i) : (i < 10 ? '  '+i : (i < 100 ? ' '+i : i))));
+    let totLen = 0;
+    for(let i = 0; i < strArr.length; i++){
+        let row = strArr[i];
+        errStr += forFun(i) + ' | ' + row.replaceAll('\t','  ') + '\n';
+        if(rowPos===i+1){
+            let rLoc = state.index - totLen - 1;
+            let spaced = (row.substring(0,rLoc).split('\t').length-1);
+            errStr += (arrLen < 10 ? ' ' : (arrLen < 100 ? '  ' : '   ')) + ' | ' + ' '.repeat(rLoc + spaced) + '^\n';
+        }
+        totLen+= row.length;
+    }
+    return new Error(`\n————— PARSING ERROR —————————————————————————\n\n${errStr}\nExpected: ${state.error}\n`);
+};
+
 let failure = (state, indexOrError, error='')=>{
     let res = { status:false };
     if(typeof indexOrError === 'string') error = indexOrError;
@@ -28,8 +48,9 @@ class Parser {
     }
 
     run(input){
-        let state = createState(input);
-        return this.callFunc(state);
+        let state = this.callFunc(createState(input));
+        if(state.status) return state.result;
+        throw createError(state);
     }
 
     call(state){
@@ -65,6 +86,16 @@ class Parser {
         return beforeParser.then(this).skip(afterParser);
     }
 
+    not(parser){
+        return new Parser(state=>{
+            let nextState = this.callFunc(state);
+            if(!nextState.status) return nextState;
+            let notState = parser.call(state);
+            if(notState.status) return failure(notState,'Parser expected not to match')
+            return nextState;
+        });
+    }
+
     seperator(parser){
         return new Parser((state)=>{
             let nextState = state;
@@ -73,7 +104,8 @@ class Parser {
                 let inState = this.callFunc(nextState);
                 if(!inState.status) return nextState;
                 if(index===inState.index) failure(inState,'Seperator Parser is not progressing, this can lead to infinite loops and was blocked');
-                nextState = inState;
+                nextState = parser.call(inState);
+                if(!nextState.status) return nextState;
             }
         });
     }
@@ -143,19 +175,11 @@ class Parser {
             return updateStateIndex(nextState,inState.index);
         });
     }
-    skipOpt(parser){
-        return new Parser(state=>{
-            let nextState = this.callFunc(state);
-            let inState = parser.call(nextState);
-            if(!inState.status) return nextState;
-            return updateStateIndex(nextState,inState.index);
-        });
-    }
 
     opt(){
         return new Parser(state=>{
             let nextState = this.callFunc(state);
-            if(!nextState.status) return success(state,nextState.index,null);
+            if(!nextState.status) return success(state,null);
             return nextState;
         });
     }
@@ -189,6 +213,15 @@ class Parser {
             let nextState = this.callFunc(state);
             if(nextState.status) return nextState;
             return failure(nextState,message);
+        });
+    }
+
+    log(prefix=null){
+        return new Parser((state)=>{
+            let nextState = this.callFunc(state);
+            if(nextState.status) console.log('\n— ' + (prefix??'') + ' —————\n', nextState.result);
+            else console.error('\n— ' + (prefix??'') + ' —————\n', createError(nextState));
+            return nextState;
         });
     }
 

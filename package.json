@@ -4,7 +4,6 @@
   "description": "A Parser Combinator written in JavaScript for Node.JS",
   "main": "src/panatom.js",
   "scripts": {
-    "index": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

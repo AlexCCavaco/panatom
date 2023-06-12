@@ -9,11 +9,12 @@ type ParserState = {
 type Parser = {
     run: (input:string)=>ParserState,
     call: (state:ParserState)=>ParserState,
-    map: (call:(data:{})=>{})=>Parser,
+    map: (call:(data:any)=>{})=>Parser,
     result: (value:any)=>Parser,
     or: (parser:Parser)=>Parser,
     then: (parser:Parser)=>Parser,
     between: (beforeParser:Parser,afterParser:Parser)=>Parser,
+    not: (parser:Parser)=>Parser,
     seperator: (parser:Parser)=>Parser,
     many: ()=>Parser,
     limit: (min:number,max:number)=>Parser,
@@ -27,6 +28,7 @@ type Parser = {
     followedBy: (parser:Parser)=>Parser,
     notFollowedBy: (parser:Parser)=>Parser,
     as: (message:string)=>Parser,
+    log: (prefix?:string)=>Parser,
 };
 
 export default function(call:(ParserState)=>ParserState):Parser;
@@ -38,7 +40,7 @@ export function regexp(regexp:RegExp):Parser;//
 export function opt(iparser:Parser):Parser;//
 export function coalesce(...parsers:Parser[]):Parser;//
 export function chain(parsers:Parser[]):Parser;//
-export function chainMap(parsers:Parser[],mapCall:(...data:{}[])=>{}):Parser;//
+export function chainMap(parsers:Parser[],mapCall:(...data:any[])=>{}):Parser;//
 export function seperator(iparser:Parser,seperator:Parser|string):Parser;//
 export function many(iparser:Parser):Parser;//
 export function manyOne(iparser:Parser):Parser;//
